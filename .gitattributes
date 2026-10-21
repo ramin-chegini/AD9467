@@ -1,0 +1,8 @@
+* text=auto
+*.md text eol=lf
+*.vhd text eol=lf
+*.v text eol=lf
+*.tcl text eol=lf
+*.xdc text eol=lf
+*.bat text eol=crlf
+*.xcix binary

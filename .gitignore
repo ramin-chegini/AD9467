@@ -1,0 +1,25 @@
+# Keep HDL, constraints, Tcl scripts, project metadata and source IP containers.
+# Vivado regenerates the directories below.
+**/.Xil/
+**/*.cache/
+**/*.runs/
+**/*.gen/
+**/*.hw/
+**/*.ip_user_files/
+**/*.sim/
+**/*.srcs/
+**/*.jou
+**/*.log
+**/*.pb
+**/*.str
+**/Xil_*.xml
+**/xsim.dir/
+**/*.wdb
+**/*.wcfg
+**/*.dcp
+**/*.bit
+**/*.bin
+**/*.ltx
+**/ip_upgrade.*
+/build/
+/tmp/
