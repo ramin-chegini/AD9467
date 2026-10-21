@@ -1,28 +1,28 @@
 # AD9467 FPGA Interface — SPI, PN9 Training & AD9516 Clock Setup
 
-**راه‌اندازی چهار ADC، تنظیم کلاک‌ساز و اعتبارسنجی مسیر داده در FPGA**
+**Four-channel ADC bring-up, clock configuration and digital receive-path calibration in VHDL.**
 
-[Ramin Chegini · رامین چگینی](https://github.com/ramin-chegini)
+[Ramin Chegini](https://github.com/ramin-chegini)
 
-این پروژه یک نمونه‌کار HDL برای نمایش مهارت در راه‌اندازی ADC پرسرعت است: تنظیم رجیسترهای **AD9467** و **AD9516** با SPI، دریافت دادهٔ LVDS به روش DDR، بررسی الگوی **PN9** و پیدا کردن تأخیر مناسب ورودی‌ها. منطق راه‌اندازی در FPGA اجرا می‌شود و برای این توالی به پردازندهٔ خارجی نیاز ندارد.
+This project demonstrates FPGA-based bring-up of four **AD9467** ADCs and an **AD9516** clock generator. It covers SPI register programming, LVDS DDR data capture, **PN9** sequence checking and automatic input-delay calibration. The startup sequence runs in FPGA logic without an external processor.
 
-تمرکز نسخهٔ فعلی، رابط خام چهار کانال است. ماژول اصلی `ADC_orihard` نام دارد و کدهای فعال آن با VHDL نوشته شده‌اند. نسخه‌های قبلی و بلوک‌های جانبی نیز در پوشهٔ HDL مشخص شده‌اند.
+The current top-level module, `ADC_orihard`, provides four raw 16-bit data outputs with their individual ADC clocks. Earlier design versions and supporting blocks are identified in the [HDL source guide](HDL/README.md).
 
-## مهارت‌های قابل بررسی در کد
+## Engineering highlights
 
-| حوزه | پیاده‌سازی قابل بررسی |
+| Area | Implementation |
 |---|---|
-| راه‌اندازی تراشه | ترتیب ریست، انتظار برای آماده شدن کلاک و نوشتن رجیسترها |
-| SPI | فریم ۲۴ بیتی، ارسال MSB-first و مدیریت CS و SCLK |
-| دریافت داده | تبدیل هشت خط DDR هر ADC به کلمهٔ ۱۶ بیتی با `IDDRE1` |
-| تست PN9 | پیش‌بینی کلمهٔ بعدی و رد دادهٔ خراب یا ورودی ثابت |
-| کالیبراسیون | جست‌وجوی شش حالت بازسازی و انتخاب مرکز پنجرهٔ معتبر تأخیر |
-| تنظیم خطوط | تنظیم مستقل تأخیر هر خط در صورت شکست جست‌وجوی مشترک |
-| چند دامنهٔ کلاک | همگام‌سازی وضعیت‌ها و آزادسازی محلی ریست |
-| مدیریت خطا | timeout آموزش و جلوگیری از اعلام آماده بودن در صورت شکست |
-| اعتبارسنجی | تست‌های خودکار دارای assertion برای مسیر سالم و حالت‌های خطا |
+| Device bring-up | Reset sequencing, clock readiness checks and register configuration |
+| SPI control | 24-bit frames, MSB-first transmission and CS/SCLK sequencing |
+| DDR capture | Eight LVDS data lanes per ADC reconstructed into 16-bit words using `IDDRE1` |
+| PN9 checking | Next-word prediction with rejection of corrupt data and stuck inputs |
+| Calibration | Six reconstruction modes and midpoint selection within a valid delay window |
+| Lane deskew | Independent lane-delay adjustment when a common delay window cannot be found |
+| Clock-domain crossings | Status synchronization and local synchronous reset release |
+| Fault handling | Training timeout and readiness held low when startup fails |
+| Existing verification sources | Assertion-based testbenches covering normal operation and fault cases |
 
-## معماری
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -40,122 +40,118 @@ flowchart TD
     TRAIN --> VIO[VIO status and manual mode control]
 ```
 
-هر ADC با DCO خودش دریافت و آموزش داده می‌شود. این کالیبراسیون، صحت بازسازی کلمهٔ هر گیرنده را بررسی می‌کند؛ هم‌فاز بودن نمونه‌های چهار ADC را تضمین نمی‌کند.
+Each receiver captures and trains using its own ADC DCO. Calibration validates word reconstruction within each receiver; deterministic sample alignment between the four ADCs requires additional system-level handling.
 
-## ساختار مخزن
+## Repository layout
 
 ```text
 AD9467/
-├── README.md                       # معرفی و راهنمای شروع
+├── README.md                       # Project overview and usage
 ├── docs/
-│   └── BRINGUP.md                  # راهنمای عملی راه‌اندازی و بررسی وضعیت
+│   └── BRINGUP.md                  # Integration and bring-up guide
 ├── HDL/
-│   ├── README.md                   # تفکیک فایل‌های فعال و نسخه‌های قبلی
-│   ├── ADC_orihard.vhd              # ماژول اصلی و گیرنده‌های چهار کانال
-│   ├── M_AD9516_Ctrl.vhd            # تنظیم کلاک‌ساز با SPI
-│   ├── ad9467_startup.vhd           # توالی تنظیم و راه‌اندازی ADC
-│   ├── adc_training_pkg.vhd         # توابع PN9 و بازسازی داده
-│   ├── adc_pn9_trainer.vhd          # آموزش مشترک و تنظیم مستقل خطوط
-│   ├── adc_idelay_loader.vhd        # کنترل تأخیر ورودی‌ها
-│   ├── ADC_ALIGN_VIO.md             # جزئیات آموزش و دیباگ
-│   └── tests/                      # تست‌بنچ‌ها و اسکریپت اجرا
-├── Constraints/adc_align_cdc.xdc    # قیود عبور وضعیت بین دامنه‌های کلاک
-├── IP/                             # IPهای ذخیره‌شدهٔ نسخهٔ اصلی پروژه
-└── Prj/AD9467_ADC_Driver.xpr        # پروژهٔ اصلی Vivado 2025.2
+│   ├── README.md                   # Active sources and earlier versions
+│   ├── ADC_orihard.vhd             # Top-level interface and four receivers
+│   ├── M_AD9516_Ctrl.vhd           # Clock-generator SPI configuration
+│   ├── ad9467_startup.vhd          # ADC configuration and startup sequence
+│   ├── adc_training_pkg.vhd        # PN9 and word-reconstruction functions
+│   ├── adc_pn9_trainer.vhd         # Common-delay training and lane deskew
+│   ├── adc_idelay_loader.vhd       # Input-delay update control
+│   ├── ADC_ALIGN_VIO.md            # Calibration and VIO reference
+│   └── tests/                     # Existing testbenches and scripts
+├── Constraints/adc_align_cdc.xdc   # Clock-domain crossing constraints
+├── IP/                            # Packaged IP from the original project
+└── Prj/AD9467_ADC_Driver.xpr       # Original Vivado 2025.2 project
 ```
 
-خروجی‌های Vivado در `.gitignore` قرار دارند. فایل‌های منبع، پروژه و IPهای `.xcix` قابل نگهداری در گیت هستند؛ کش، لاگ و خروجی شبیه‌سازی دوباره تولید می‌شوند.
+The repository keeps HDL sources, constraints, project metadata and packaged `.xcix` IP files. Generated Vivado caches, logs and build outputs are excluded through `.gitignore`.
 
-## توالی راه‌اندازی
+## Startup sequence
 
-1. ناظر کلاک از کلاک ورودی ۱۰۰ مگاهرتز اجرا می‌شود تا در صورت توقف خروجی MMCM نیز بتواند آن را ریست کند.
-2. کلاک‌های داخلی ساخته می‌شوند. ریست `IDELAYE3` پیش از ریست `IDELAYCTRL` آزاد می‌شود و مدار منتظر آماده شدن بخش تأخیر می‌ماند.
-3. کنترلر AD9516 جدول ۶۳ نوشتن رجیستر را ارسال می‌کند. تنظیمات جدول به برد و مدل دقیق AD9516 وابسته‌اند.
-4. پس از آماده شدن شرایط کلاک و قفل AD9516، کنترلر ADC با تنظیمات پیش‌فرض ۱۰۰ میلی‌ثانیه صبر می‌کند و تنظیمات یکسان را برای هر چهار ADC می‌فرستد.
-5. ADCها وارد PN9 می‌شوند. هر گیرنده، حالت بازسازی داده و تأخیر مناسب را به صورت مستقل پیدا می‌کند.
-6. پس از موفقیت هر چهار کانال، ADCها به دریافت عادی با فرمت مکمل دو برمی‌گردند. پس از ۲۰۴۸ سیکل کلاک کنترل، `ADC_READY` فعال می‌شود.
+1. A supervisor runs from the incoming 100 MHz clock so it can reset the MMCM even when the MMCM output clocks stop.
+2. Internal clocks are generated. `IDELAYE3` reset releases before `IDELAYCTRL` reset, and application logic waits for delay-controller readiness.
+3. The AD9516 controller sends its board-specific sequence of 63 register writes. The register profile depends on the board and the exact AD9516 variant.
+4. Once the required clocks, delay controller and AD9516 lock are ready, the ADC sequencer waits 100 ms with the default parameters and broadcasts the ADC configuration.
+5. All ADCs enter PN9 mode. Each receiver independently searches for a valid reconstruction mode and input delay.
+6. After all four receivers pass, the ADCs return to normal conversion with two's-complement output. `ADC_READY` asserts after a further 2048 control-clock cycles to drain the transition samples.
 
-نام `clk_25m` و پورت `S6_25MCLK` از نسخهٔ قبلی باقی مانده‌اند؛ فرکانس واقعی آن‌ها در این پروژه **۲۰ مگاهرتز** است. خروجی‌های دیگر Clocking Wizard برابر ۱۰۰، ۲۰۰ و حدود ۳۳۳٫۳۳۳ مگاهرتز درخواست شده‌اند؛ خروجی داخلی ۱۰۰ مگاهرتز در ماژول فعلی استفاده نمی‌شود.
+`clk_25m` and `S6_25MCLK` are legacy names: their actual frequency in this design is **20 MHz**. The Clocking Wizard also requests 100 MHz, 200 MHz and approximately 333.333 MHz outputs. Its generated 100 MHz output is unused in the current top-level module.
 
-## SPI و رجیسترهای کلیدی
+## SPI programming
 
-در کنترلرهای فعال، هر فرمان شامل **۱۶ بیت دستور/آدرس + ۸ بیت داده** است. SPI مربوط به AD9467 در حالت Mode 0 اجرا می‌شود؛ با پارامتر پیش‌فرض، SCLK آن ۲٫۵ مگاهرتز است. خروجی‌های SPI چهار ADC، فرمان‌های یکسان را هم‌زمان دریافت می‌کنند.
+Each active controller sends a **16-bit instruction/address followed by an 8-bit data byte**. The AD9467 sequencer uses SPI Mode 0, with a default SCLK frequency of 2.5 MHz from the 20 MHz control clock. The four ADC SPI interfaces receive identical commands in parallel.
 
-| تراشه | رجیستر | مقدار | کاربرد در این طراحی |
+| Device | Register | Value | Purpose in this design |
 |---|---|---|---|
-| AD9467 | `0x14` | `0x08` | انتخاب offset binary هنگام آموزش |
-| AD9467 | `0x0D` | `0x06` | فعال کردن PN9 |
-| AD9467 | `0xFF` | `0x01` | اعمال تنظیمات ADC |
-| AD9467 | `0x0D` | `0x00` | خاموش کردن الگوی تست |
-| AD9467 | `0x14` | `0x09` | انتخاب مکمل دو برای دریافت عادی |
-| AD9516 | `0x0232` | `0x01` | اعمال تنظیمات با IO_UPDATE |
+| AD9467 | `0x14` | `0x08` | Select offset-binary output for training |
+| AD9467 | `0x0D` | `0x06` | Enable PN9 output |
+| AD9467 | `0xFF` | `0x01` | Apply ADC register changes |
+| AD9467 | `0x0D` | `0x00` | Disable the test pattern |
+| AD9467 | `0x14` | `0x09` | Select two's complement for normal acquisition |
+| AD9516 | `0x0232` | `0x01` | Apply buffered settings through IO_UPDATE |
 
-جدول کامل ADC در `ad9467_startup.vhd` و جدول AD9516 در `M_AD9516_Ctrl.vhd` قرار دارد. این کنترلرها نوشتن رجیستر را انجام می‌دهند؛ بازخوانی رجیستر در مسیر فعال پیاده‌سازی نشده است. فرکانس خروجی کلاک‌ساز را باید با توجه به مرجع ورودی، مدل تراشه و تقسیم‌کننده‌های برد تعیین کرد.
+The complete ADC command tables are in `ad9467_startup.vhd`; the clock-generator table is in `M_AD9516_Ctrl.vhd`. Both active controllers perform register writes. Register readback is not implemented in this path.
 
-انتخاب PN9 و فرمت خروجی در [دیتاشیت AD9467](https://www.analog.com/media/en/technical-documentation/data-sheets/AD9467.pdf) و کاربرد IO_UPDATE در [دیتاشیت AD9516-0، به عنوان مرجع خانواده](https://www.analog.com/media/en/technical-documentation/data-sheets/ad9516-0.pdf) شرح داده شده است. برای تغییر جدول کلاک، دیتاشیت مدل دقیق روی برد ملاک است.
+PN9 selection and ADC output formatting are documented in the [AD9467 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/AD9467.pdf). The [AD9516-0 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ad9516-0.pdf) describes the family serial interface and IO_UPDATE mechanism. Use the datasheet for the exact device fitted to the board when changing the clock profile.
 
-## تست PN9 چگونه کار می‌کند؟
+## PN9 checking and delay training
 
-تابع `pn9_next` از رابطهٔ `x^9 + x^5 + 1` و قالب خروجی ADC برای محاسبهٔ کلمهٔ بعدی استفاده می‌کند. پیش‌بینی با دادهٔ دریافتی مقایسه می‌شود؛ بنابراین لازم نیست گیرنده دقیقاً از اولین کلمهٔ PN9 شروع کند. تست‌بنچ این زنجیرهٔ مرجع دیتاشیت را نیز بررسی می‌کند:
+`pn9_next` uses the `x^9 + x^5 + 1` recurrence and the ADC output formatting to predict the next 16-bit word. The receiver compares the prediction with incoming data without requiring a fixed starting PN phase. The existing testbench also checks the datasheet reference sequence:
 
 ```text
 FFFF → 87BE → AE64 → 929D
 ```
 
-الگوریتم ابتدا شش حالت جفت‌کردن خروجی‌های DDR و تأخیرهای `0, 8, …, 504` را بررسی می‌کند. برای هر نقطه، پس از زمان نشست، ۳۲ کلمهٔ صحیح پیاپی برای گرفتن توالی و سپس ۱۰۲۴ کلمهٔ صحیح برای پذیرش نقطه لازم است. پنجره باید حداقل چهار نقطهٔ معتبر داشته باشد؛ مرکز طولانی‌ترین پنجره انتخاب می‌شود.
+The common-delay search evaluates six DDR reconstruction modes at delays `0, 8, …, 504`. After settling at each candidate, it requires 32 consecutive correct words for sequence acquisition, followed by 1024 correct words for candidate acceptance. A valid window must contain at least four passing points. The midpoint of the longest passing window is selected.
 
-اگر هیچ پنجرهٔ مشترکی برای هشت خط پیدا نشود، `adc_lane_pn9_trainer` یک خط مرجع معتبر پیدا می‌کند، وضعیت PN را از ۹ مشاهده بازسازی می‌کند و تأخیر هر خط را جداگانه تنظیم می‌کند. در پایان، کل کلمهٔ ۱۶ بیتی دوباره بررسی می‌شود.
+If the eight lanes have no valid shared window, `adc_lane_pn9_trainer` finds a reliable reference lane, reconstructs the PN state from nine observations and searches the delay window of each lane independently. A final full-word comparison checks that all lanes agree.
 
-`adc_idelay_loader` هنگام تغییر تأخیر، EN_VTC را با زمان انتظار لازم کنترل می‌کند و هر LOAD را به حداکثر هشت tap محدود می‌کند. پس از فعال شدن دوبارهٔ VTC، ۴۰۹۶ کلمهٔ صحیح برای قبولی نهایی لازم است. ورودی ثابت و حالت ممنوع PN، از جمله `0x8000` در قالب مورد استفاده، پذیرفته نمی‌شوند.
+`adc_idelay_loader` controls EN_VTC guard intervals and limits each LOAD update to at most eight taps. After VTC is restored, 4096 correct words are required for final acceptance. Constant inputs and the forbidden PN state, represented as `0x8000` in the selected format, are rejected.
 
-## اجرای پروژه
+## Opening the project
 
-پروژهٔ ذخیره‌شده با **Vivado 2025.2** و قطعهٔ **`xcvu9p-flga2104-2-i`** ساخته شده است. برای باز کردن آن از مسیر زیر استفاده کنید:
+The saved project targets **`xcvu9p-flga2104-2-i`** and records **Vivado 2025.2** as its tool version:
 
 ```text
 Prj/AD9467_ADC_Driver.xpr
 ```
 
-فایل‌ست فعال شامل شش فایل VHDL معرفی‌شده در [نقشهٔ HDL](HDL/README.md)، دو IP کلاک و VIO و فایل قیود داخل `Constraints/` است. در صورت تغییر نسخهٔ Vivado، وضعیت سازگاری IPها باید در خود ابزار بررسی شود. مراحل اتصال به برد در [راهنمای راه‌اندازی](docs/BRINGUP.md) آمده است.
+The active source set contains the six VHDL files listed in the [HDL source guide](HDL/README.md), the clock and VIO IP, and the constraint file under `Constraints/`. Check IP compatibility in Vivado when using a different tool version. See the [bring-up guide](docs/BRINGUP.md) for integration details.
 
-این مخزن ماژول رابط را ارائه می‌کند. برای ساخت بیت‌استریم روی برد، قیود اختصاصی پایه‌ها، I/O، کلاک و زمان‌بندی ورودی ADC باید متناسب با برد اضافه شوند؛ فایل CDC به‌تنهایی برای پیاده‌سازی روی برد کافی نیست.
+Board-specific pin assignments, I/O standards, clock constraints and ADC input-delay constraints must be supplied before building a board bitstream. The included CDC constraints alone do not define a complete board implementation.
 
-## اجرای تست‌ها
+## Existing testbenches
 
-در Vivado Command Prompt، از ریشهٔ مخزن:
+The repository includes the following verification sources:
+
+| Testbench | Coverage |
+|---|---|
+| `tb_adc_training` | Six DDR modes, eye centering, delay steps, APPLY, stuck data and final VTC verification |
+| `tb_adc_lane_training` | PN-state recovery, separate lane eyes, shared-eye path and lane fault rejection |
+| `tb_ad9467_startup` | ADC SPI frames, PN9/normal command order, all-channel barrier and timeout |
+| `tb_adc_clock_supervisor` | Clock lock, IDELAY readiness and recovery after clock loss |
+| `tb_adc_delay_reset` | Reset-release ordering and stopped-clock behavior |
+
+To run the existing suite from a Vivado Command Prompt at the repository root:
 
 ```bat
 HDL\tests\run_tests.bat
 ```
 
-خروجی موفق کل مجموعه:
+Its success marker is `ADC_AUTOSTART_TESTS_PASSED`. The legacy `HDL/tests/synth_check.tcl` refers to an earlier `ADC_xung` integration and cannot run directly against the current top. Use `AD9467_ADC_Driver.xpr` for synthesis of the current interface.
 
-```text
-ADC_AUTOSTART_TESTS_PASSED
-```
+## Outputs and diagnostics
 
-| تست‌بنچ | موارد بررسی |
-|---|---|
-| `tb_adc_training` | شش حالت DDR، مرکز پنجره، گام تأخیر، APPLY، دادهٔ ثابت و تست نهایی VTC |
-| `tb_adc_lane_training` | بازیابی PN، چشم‌های جداگانهٔ خطوط، مسیر مشترک و رد خطاهای خط داده |
-| `tb_ad9467_startup` | محتوای فریم‌های SPI مربوط به ADC، ترتیب PN9/normal، انتظار برای چهار کانال و timeout |
-| `tb_adc_clock_supervisor` | قفل کلاک، آماده شدن IDELAY و بازیابی هنگام قطع کلاک |
-| `tb_adc_delay_reset` | ترتیب آزادسازی ریست و رفتار در توقف کلاک |
+- `ADC1_DATA` through `ADC4_DATA`: 16-bit samples, each in its corresponding `ADCx_CLK` domain.
+- `ADC_READY`: startup has passed and the PN9-to-normal transition has completed. Synchronize this signal in the consuming clock domain.
+- `ADC_TRAIN_FAILED`: the startup sequence has entered a fault state. Reset starts another calibration attempt.
+- `CLOCK_LOCKED` and `IDELAY_READY`: synchronized status in the incoming 100 MHz clock domain.
+- `vio_adc_align`: per-channel status and optional manual reconstruction-mode control after startup.
 
-تست‌بنچ‌های بالا از قبل در پروژه موجودند. اسکریپت `HDL/tests/synth_check.tcl` مربوط به اتصال قدیمی `ADC_xung` است و مستقیماً برای ماژول اصلی این مخزن قابل اجرا نیست؛ برای سنتز نسخهٔ فعلی از پروژهٔ `AD9467_ADC_Driver.xpr` استفاده کنید.
+Raw outputs also change during training. Treat them as normal samples only after `ADC_READY`. Moving samples into another clock domain requires an appropriate interface, such as a dual-clock FIFO. The [VIO reference](HDL/ADC_ALIGN_VIO.md) describes the status fields and manual controls.
 
-## خروجی و دیباگ
+## Scope of the results
 
-- `ADC1_DATA` تا `ADC4_DATA`: دادهٔ ۱۶ بیتی؛ هر خروجی در دامنهٔ `ADCx_CLK` خودش قرار دارد.
-- `ADC_READY`: موفقیت راه‌اندازی و پایان گذار از PN9 به حالت عادی؛ منطق مصرف‌کننده باید این سیگنال را در دامنهٔ خودش همگام کند.
-- `ADC_TRAIN_FAILED`: شکست توالی راه‌اندازی یا timeout آموزش؛ reset یک تلاش تازه را شروع می‌کند.
-- `CLOCK_LOCKED` و `IDELAY_READY`: وضعیت همگام‌شده در دامنهٔ ورودی ۱۰۰ مگاهرتز.
-- `vio_adc_align`: وضعیت چهار کانال و انتخاب دستی حالت بازسازی پس از راه‌اندازی.
+A successful PN9 check provides evidence of digital receive-path correctness under the test conditions. It does not measure SNR, ENOB, long-term error rate or board timing margin. PN9 checking runs during startup and is not continuous in normal acquisition mode.
 
-دادهٔ خام هنگام آموزش نیز تغییر می‌کند؛ فقط پس از `ADC_READY` آن را به عنوان دادهٔ عادی استفاده کنید. اگر داده باید وارد دامنهٔ کلاک دیگری شود، به رابط مناسب مانند FIFO دوکلاکه نیاز دارد. جزئیات بیت‌های VIO در [راهنمای دیباگ](HDL/ADC_ALIGN_VIO.md) آمده است.
-
-## دامنهٔ نتیجه
-
-قبولی PN9، شاهدی از صحت مسیر دیجیتال در شرایط تست است. نتیجهٔ اندازه‌گیری SNR، ENOB، نرخ خطای بلندمدت یا حاشیهٔ زمان‌بندی برد از آن به دست نمی‌آید. PN9 فقط هنگام راه‌اندازی بررسی می‌شود و در حالت دریافت عادی پایش پیوسته ندارد. نتیجهٔ شبیه‌سازی و سنتز نیز جای آزمون روی سخت‌افزار و تحلیل زمان‌بندی پس از مسیرکشی را نمی‌گیرد.
-
-این تفکیک کمک می‌کند نمونه‌کار با شواهد روشن ارائه شود: کد و تست‌های دیجیتال قابل بررسی‌اند و نتایج واقعی برد را می‌توان همراه گزارش ابزار و تصاویر اندازه‌گیری به مخزن اضافه کرد.
+Simulation and synthesis do not replace board measurements or timing analysis after routing. Hardware captures, timing reports and measured results can be added to document the conditions under which the design has been demonstrated.

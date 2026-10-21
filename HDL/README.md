@@ -1,28 +1,28 @@
-# نقشهٔ فایل‌های HDL
+# HDL Source Guide
 
-پروژهٔ فعلی از `ADC_orihard` به عنوان ماژول اصلی استفاده می‌کند. برای شروع، [README اصلی](../README.md) را بخوانید.
+The current top-level module is `ADC_orihard`. Start with the [project README](../README.md) for an overview.
 
-## فایل‌های فعال
+## Active sources
 
-| فایل | کار آن |
+| File | Responsibility |
 |---|---|
-| `ADC_orihard.vhd` | اتصال چهار ADC و AD9516؛ شامل گیرندهٔ DDR، ناظر کلاک و ترتیب ریست |
-| `M_AD9516_Ctrl.vhd` | ارسال جدول تنظیمات کلاک‌ساز AD9516 با SPI |
-| `ad9467_startup.vhd` | تنظیم ADCها، فعال کردن PN9 و ورود به حالت دریافت عادی |
-| `adc_training_pkg.vhd` | پیش‌بینی PN9، بازیابی وضعیت از یک خط و بازسازی کلمهٔ ۱۶ بیتی |
-| `adc_pn9_trainer.vhd` | آموزش با تأخیر مشترک و، در صورت نیاز، تنظیم جداگانهٔ خطوط |
-| `adc_idelay_loader.vhd` | اعمال تأخیر با گام محدود و کنترل EN_VTC |
-| `tests/` | تست‌های شبیه‌سازی و اسکریپت بررسی سنتز |
+| `ADC_orihard.vhd` | Connects four ADCs and the AD9516; includes DDR receivers, clock supervision and reset sequencing |
+| `M_AD9516_Ctrl.vhd` | Programs the AD9516 clock generator through SPI |
+| `ad9467_startup.vhd` | Configures the ADCs, enables PN9 and transitions to normal acquisition |
+| `adc_training_pkg.vhd` | PN9 prediction, single-lane state recovery and 16-bit word reconstruction |
+| `adc_pn9_trainer.vhd` | Common-delay training with independent lane deskew as a fallback |
+| `adc_idelay_loader.vhd` | Bounded input-delay updates and EN_VTC control |
+| `tests/` | Existing simulation testbenches and verification scripts |
 
-فایل CDC فعال پروژه در [Constraints/adc_align_cdc.xdc](../Constraints/adc_align_cdc.xdc) است. فایل هم‌نام در این پوشه از اتصال قدیمی باقی مانده است؛ هر دو را هم‌زمان به پروژه اضافه نکنید. نام سلسله‌مراتب در قیود باید هنگام ادغام با طراحی اصلی بررسی شود.
+The project uses [Constraints/adc_align_cdc.xdc](../Constraints/adc_align_cdc.xdc). The file with the same name in this HDL directory belongs to an earlier integration. Do not add both files to the same project. Check constraint hierarchy matches when integrating the interface into a parent design.
 
-## نسخه‌های قبلی و نمونه‌های جانبی
+## Earlier versions and supporting blocks
 
-این فایل‌ها برای حفظ سابقهٔ طراحی نگه داشته شده‌اند و در فایل‌ست فعال پروژهٔ فعلی قرار ندارند:
+The following files are retained as design references and are outside the current active source set:
 
-- `TOP_V2.vhd`: اتصال قبلی شامل FIFO و ILA؛ به ماژول‌ها و IPهای دیگری نیاز دارد.
-- `AD_CTR.vhd`: کنترلر قبلی تنظیم ADC.
-- `AD_DATA_V2.vhd`: نسخهٔ قبلی دریافت داده.
-- `DC_Remover.vhd`: بلوک جانبی حذف مؤلفهٔ DC؛ بخشی از رابط خام فعلی نیست.
+- `TOP_V2.vhd`: earlier system integration with FIFOs and ILA; requires additional modules and IP.
+- `AD_CTR.vhd`: earlier ADC configuration controller.
+- `AD_DATA_V2.vhd`: earlier data-receiver implementation.
+- `DC_Remover.vhd`: supporting DC-removal block, outside the current raw-data interface.
 
-این نسخه‌ها را همراه ماژول اصلی به صورت گروهی وارد پروژه نکنید. فایل‌ست `sources_1` پروژهٔ `Prj/AD9467_ADC_Driver.xpr` شش فایل فعال را مشخص می‌کند. اسکریپت‌های قدیمی ممکن است به نام‌های پروژهٔ قبلی اشاره کنند.
+Use the `sources_1` file set in `Prj/AD9467_ADC_Driver.xpr` to identify the six active VHDL sources. Earlier integration scripts may refer to module names from the previous design.

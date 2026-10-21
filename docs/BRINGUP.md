@@ -1,12 +1,12 @@
-# راهنمای راه‌اندازی و ارائهٔ پروژه
+# Integration and Bring-Up Guide
 
-این راهنما مسیر داده و کنترل ماژول `ADC_orihard` را توضیح می‌دهد. معرفی کلی و مهارت‌های قابل بررسی در [README](../README.md) آمده است.
+This guide describes the control and receive paths of `ADC_orihard`. The [project README](../README.md) provides the architecture overview and engineering highlights.
 
-## باز کردن پروژه
+## Open the project
 
-فایل `Prj/AD9467_ADC_Driver.xpr` را با Vivado باز کنید. نسخهٔ ثبت‌شدهٔ پروژه 2025.2 و قطعهٔ انتخاب‌شده `xcvu9p-flga2104-2-i` است. ماژول اصلی باید `ADC_orihard` باشد.
+Open `Prj/AD9467_ADC_Driver.xpr` in Vivado. The saved project records Vivado 2025.2 and targets `xcvu9p-flga2104-2-i`. The top-level module is `ADC_orihard`.
 
-شش فایل فعال پروژه عبارت‌اند از:
+The six active VHDL sources are:
 
 ```text
 adc_training_pkg.vhd
@@ -17,52 +17,50 @@ ad9467_startup.vhd
 ADC_orihard.vhd
 ```
 
-دو IP مورد نیاز `adc_xung_clk` و `vio_adc_align` در پوشهٔ `IP/` قرار دارند. فایل‌های دیگر HDL سابقهٔ طراحی و بلوک‌های جانبی هستند؛ برای توضیح هر کدام به [نقشهٔ فایل‌ها](../HDL/README.md) مراجعه کنید.
+The required `adc_xung_clk` and `vio_adc_align` IP containers are under `IP/`. Other HDL files are supporting blocks or earlier design versions; see the [source guide](../HDL/README.md).
 
-## پیش‌نیاز اتصال به برد
+## Board integration
 
-ورودی `sys_clk` به کلاک بافرشدهٔ ۱۰۰ مگاهرتز نیاز دارد و ریست `rst_n` فعال‌پایین است. هر ADC هشت زوج داده، یک DCO تفاضلی و پایه‌های SPI خودش را دارد. کنترل AD9516 از مسیر SPI جداگانه انجام می‌شود و ورودی `CpSl_AD9516_LD_i` وضعیت قفل آن را به منطق راه‌اندازی می‌رساند.
+`sys_clk` requires a buffered 100 MHz input. `rst_n` is active low. Each ADC provides eight differential data lanes, a differential DCO and its own SPI connections. The AD9516 has a separate SPI control path, and `CpSl_AD9516_LD_i` supplies its lock status to the startup logic.
 
-تعیین پایه‌ها، استانداردهای I/O و قیود زمان‌بندی ورودی، به برد وابسته است. فایل `Constraints/adc_align_cdc.xdc` قیود CDC را دارد و بعضی نام‌های سلسله‌مراتب آن از طراحی مادر باقی مانده‌اند؛ هنگام ادغام باید تطبیق آن‌ها با نمونهٔ واقعی بررسی شود. تنظیمات کلاک‌ساز نیز باید با مدل دقیق AD9516 و مرجع روی برد سازگار باشد.
+Pin assignments, I/O standards and ADC input timing constraints depend on the board. `Constraints/adc_align_cdc.xdc` contains CDC constraints, including some hierarchy names inherited from the parent design. Verify those matches against the actual integration. The clock-generator register profile must also match the exact AD9516 variant and the board reference clock.
 
-## اتفاقی که پس از ریست می‌افتد
+## Behavior after reset
 
-1. مدار ناظر، MMCM را از دامنهٔ کلاک ورودی کنترل می‌کند.
-2. پس از قفل کلاک، بخش تأخیر ورودی به ترتیب از ریست خارج می‌شود.
-3. کنترلر AD9516 جدول تنظیمات را ارسال می‌کند. این کنترلر برای شروع کار به قفل شدن خود AD9516 وابسته نیست.
-4. پس از قفل AD9516 و آماده شدن IDELAY، کنترلر ADC زمان انتظار را طی می‌کند و حالت PN9 را فعال می‌کند.
-5. هر گیرنده با DCO خودش، حالت بازسازی و تأخیر مناسب را جست‌وجو می‌کند.
-6. اگر آموزش مشترک کافی نباشد، مسیر تنظیم مستقل خطوط فعال می‌شود.
-7. پس از قبولی همهٔ کانال‌ها، حالت تست خاموش می‌شود و در پایان زمان تخلیه، `ADC_READY` بالا می‌رود.
+1. The supervisor controls MMCM reset from the incoming clock domain.
+2. After clock lock, the input-delay primitives leave reset in the required order.
+3. The AD9516 controller sends its configuration table. Its own startup does not depend on AD9516 lock already being asserted.
+4. After AD9516 lock and IDELAY readiness, the ADC sequencer completes its wait interval and enables PN9.
+5. Each receiver searches reconstruction modes and input delays using its own DCO.
+6. If common-delay training fails, the receiver tries independent lane deskew.
+7. Once all receivers pass, the ADCs leave test mode. `ADC_READY` asserts after the flush interval.
 
-کلاک کنترل واقعاً ۲۰ مگاهرتز است؛ نام‌های `clk_25m` و `S6_25MCLK` تاریخی هستند. پارامترهای زمان انتظار نیز با همین ۲۰ مگاهرتز تفسیر می‌شوند.
+The control clock is 20 MHz. `clk_25m` and `S6_25MCLK` are legacy names; interpret the startup timing parameters using the actual 20 MHz clock.
 
-## معنی وضعیت‌ها
+## Status signals
 
-| وضعیت | برداشت درست |
+| Signal | Meaning |
 |---|---|
-| `CLOCK_LOCKED = 1` | وضعیت قفل MMCM در دامنهٔ ورودی همگام شده است |
-| `IDELAY_READY = 1` | وضعیت آماده بودن کنترل تأخیر همگام شده است |
-| `ADC_READY = 1` | هر چهار آموزش قبول شده و توالی بازگشت به دریافت عادی تمام شده است |
-| `ADC_TRAIN_FAILED = 1` | توالی راه‌اندازی به حالت خطا رفته است |
+| `CLOCK_LOCKED = 1` | MMCM lock status has been synchronized into the incoming clock domain |
+| `IDELAY_READY = 1` | Delay-controller readiness has been synchronized into the incoming clock domain |
+| `ADC_READY = 1` | All four receivers passed training and the return to normal mode has completed |
+| `ADC_TRAIN_FAILED = 1` | The startup sequencer has entered a fault state |
 
-`ADC_READY` به تنهایی هم‌فاز بودن چهار ADC یا صحت قیود فیزیکی برد را ثابت نمی‌کند. مصرف‌کنندهٔ داده باید وضعیت آماده بودن و عبور داده به دامنهٔ کلاک خودش را مدیریت کند. این ماژول FIFO خروجی ندارد.
+`ADC_READY` does not establish deterministic sample alignment between ADCs or validate board-level physical constraints. The consumer must handle readiness and data transfers into its own clock domain. This interface has no output FIFO.
 
-برای دیدن mode و tap انتخاب‌شدهٔ کانال‌ها و کنترل دستی آن‌ها، [راهنمای VIO](../HDL/ADC_ALIGN_VIO.md) را بخوانید.
+See the [VIO reference](../HDL/ADC_ALIGN_VIO.md) for per-channel reconstruction modes, reported delays and manual controls.
 
-## توضیح پروژه در ارائهٔ فنی
+## Suggested technical walkthrough
 
-می‌توان مسیر ارائه را با این ترتیب جلو برد:
+1. **Clock configuration:** explain the AD9516 register table, SPI frame construction and IO_UPDATE writes in `M_AD9516_Ctrl.vhd`.
+2. **ADC configuration:** show the `CONFIG` and `NORMAL` command arrays in `ad9467_startup.vhd`.
+3. **Data capture:** follow the differential-input, IDELAY and IDDRE1 path in `ADC_orihard.vhd`.
+4. **PN9 checking:** explain next-word prediction and comparison in `adc_training_pkg.vhd` and the trainer.
+5. **Delay selection:** describe eye-center selection and the independent-lane fallback.
+6. **Readiness:** show why normal acquisition starts only after all four receivers succeed.
 
-1. **کنترل کلاک:** جدول AD9516، ساخت فریم و دستور IO_UPDATE را در `M_AD9516_Ctrl.vhd` نشان بدهید.
-2. **تنظیم ADC:** آرایه‌های `CONFIG` و `NORMAL` را در `ad9467_startup.vhd` توضیح بدهید.
-3. **دریافت داده:** مسیر ورودی تفاضلی، IDELAY و IDDRE1 را در `ADC_orihard.vhd` دنبال کنید.
-4. **بررسی PN9:** رابطهٔ پیش‌بینی و مقایسه با نمونهٔ بعدی را در `adc_training_pkg.vhd` و trainer توضیح بدهید.
-5. **انتخاب تأخیر:** علت انتخاب مرکز پنجره و مسیر تنظیم مستقل خطوط را نشان بدهید.
-6. **شرط آماده بودن:** توضیح بدهید چرا سیستم تا قبولی چهار کانال وارد دریافت عادی نمی‌شود.
+A short project introduction:
 
-متن کوتاه پیشنهادی برای معرفی:
+> This project implements FPGA-based bring-up of four AD9467 ADCs and an AD9516 clock generator. SPI controllers program the devices, while PN9 checking calibrates DDR word reconstruction and input delays. The interface reports readiness only after all four receivers pass training and the ADCs return to normal acquisition.
 
-> در این پروژه، راه‌اندازی چهار AD9467 و تنظیم کلاک‌ساز AD9516 در FPGA پیاده‌سازی شده است. مسیر کنترل شامل ارسال تنظیمات با SPI است و مسیر دریافت با کمک PN9، ترتیب دادهٔ DDR و تأخیر ورودی‌ها را تنظیم می‌کند. خروجی آماده بودن تنها پس از موفقیت آموزش هر چهار کانال و بازگشت ADCها به حالت عادی فعال می‌شود.
-
-برای ادعای نتایج سخت‌افزاری، تصاویر واقعی برد، ثبت وضعیت VIO/ILA و گزارش اندازه‌گیری مرتبط را همراه توضیح شرایط آزمایش اضافه کنید. مخزن فعلی ادعایی دربارهٔ SNR، ENOB یا نرخ نمونه‌برداری اندازه‌گیری‌شده ندارد.
+Support hardware performance claims with actual board photographs, VIO/ILA captures and measurement reports that state the operating conditions. The current repository makes no claim about measured SNR, ENOB or sampling rate.
